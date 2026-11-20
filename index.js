@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { connectDB } from './config/db.js';
 import { verifyJWT } from './middlewares/authMiddleware.js';
+import { requestLogger, notFoundHandler } from './middlewares/loggerMiddleware.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -19,6 +20,9 @@ app.use(
     credentials: true,
   })
 );
+
+// Request logger near the top of the middleware chain
+app.use(requestLogger);
 
 // Stripe webhook must receive raw body, mounted BEFORE express.json()
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
@@ -39,6 +43,9 @@ app.get('/', (req, res) => {
 app.get('/api/me', verifyJWT, (req, res) => {
   res.send({ user: req.user });
 });
+
+// 404 handler for unmatched routes
+app.use(notFoundHandler);
 
 // Global Express error-handling middleware
 app.use((err, req, res, next) => {

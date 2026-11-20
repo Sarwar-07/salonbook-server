@@ -39,7 +39,16 @@ export const connectDB = async () => {
   collections.appointmentsCollection = db.collection('appointments');
   collections.transactionsCollection = db.collection('transactions');
 
-  console.log(`Connected to MongoDB database: ${dbName}`);
+  // Create performance and uniqueness indexes
+  await Promise.all([
+    collections.usersCollection.createIndex({ email: 1 }, { unique: true }),
+    collections.servicesCollection.createIndex({ category: 1, status: 1 }),
+    collections.appointmentsCollection.createIndex({ serviceId: 1, appointmentDate: 1, timeSlot: 1 }),
+    collections.appointmentsCollection.createIndex({ customerEmail: 1, createdAt: -1 }),
+    collections.transactionsCollection.createIndex({ stripeSessionId: 1 }, { unique: true, sparse: true }),
+  ]);
+
+  console.log(`Connected to MongoDB database: ${dbName} (indexes verified)`);
   return db;
 };
 
