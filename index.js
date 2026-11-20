@@ -1,14 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
 import { verifyJWT } from './middlewares/authMiddleware.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
-
-dotenv.config();
+import paymentRoutes, { stripeWebhookHandler } from './routes/paymentRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -20,11 +19,15 @@ app.use(
   })
 );
 
+// Stripe webhook must receive raw body, mounted BEFORE express.json()
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json());
 app.use('/api', serviceRoutes);
 app.use('/api', appointmentRoutes);
 app.use('/api', userRoutes);
 app.use('/api', dashboardRoutes);
+app.use('/api', paymentRoutes);
 
 app.get('/', (req, res) => {
   res.send({ status: 'ok', message: 'SalonBook API Server is running' });
