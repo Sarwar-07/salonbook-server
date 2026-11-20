@@ -1,0 +1,48 @@
+import { MongoClient, ServerApiVersion } from 'mongodb';
+import dns from 'node:dns';
+
+dns.setServers(['1.1.1.1', '8.8.8.8']);
+
+let client;
+let db;
+
+const collections = {
+  usersCollection: null,
+  servicesCollection: null,
+  appointmentsCollection: null,
+  transactionsCollection: null,
+};
+
+export const connectDB = async () => {
+  if (db) return db;
+
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('MONGODB_URI is not defined in environment variables');
+  }
+
+  const dbName = process.env.DB_NAME || 'salonbook_db';
+
+  client = new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  });
+
+  await client.connect();
+  db = client.db(dbName);
+
+  collections.usersCollection = db.collection('users');
+  collections.servicesCollection = db.collection('services');
+  collections.appointmentsCollection = db.collection('appointments');
+  collections.transactionsCollection = db.collection('transactions');
+
+  console.log(`Connected to MongoDB database: ${dbName}`);
+  return db;
+};
+
+export const getCollections = () => {
+  return collections;
+};
