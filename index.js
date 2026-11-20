@@ -24,6 +24,16 @@ app.use(
 // Request logger near the top of the middleware chain
 app.use(requestLogger);
 
+// Async database-readiness middleware ensuring MongoDB connection before route execution
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Stripe webhook must receive raw body, mounted BEFORE express.json()
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
@@ -56,18 +66,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-const startServer = async () => {
-  try {
-    await connectDB();
-    app.listen(port, () => {
-      console.log(`SalonBook server listening on port ${port}`);
-    });
-  } catch (error) {
-    console.error('Failed to connect to database or start server:', error);
-    process.exit(1);
-  }
-};
-
-startServer();
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`SalonBook server listening on port ${port}`);
+  });
+}
 
 export default app;
+if (typeof module !== 'undefined') {
+  module.exports = app;
+}
