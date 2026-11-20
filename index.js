@@ -8,6 +8,7 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import paymentRoutes, { stripeWebhookHandler } from './routes/paymentRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -23,6 +24,7 @@ app.use(
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
 app.use(express.json());
+app.use('/api', authRoutes);
 app.use('/api', serviceRoutes);
 app.use('/api', appointmentRoutes);
 app.use('/api', userRoutes);
