@@ -24,6 +24,10 @@ const handleSessionPaymentSuccess = async (session) => {
 
   const { transactionsCollection, appointmentsCollection } = getCollections();
 
+  // Fetch appointment to obtain appointmentDate
+  const appointment = await appointmentsCollection.findOne({ _id: new ObjectId(appointmentId) });
+  const appointmentDate = appointment?.appointmentDate || '';
+
   // Idempotent insert into transactionsCollection (skip if stripeSessionId already exists)
   const existingTransaction = await transactionsCollection.findOne({
     stripeSessionId: session.id,
@@ -34,6 +38,7 @@ const handleSessionPaymentSuccess = async (session) => {
       appointmentId: new ObjectId(appointmentId),
       customerEmail: customerEmail || '',
       serviceName: serviceName || '',
+      appointmentDate,
       amount: (session.amount_total || 0) / 100,
       currency: session.currency || 'usd',
       stripeSessionId: session.id,
@@ -42,9 +47,14 @@ const handleSessionPaymentSuccess = async (session) => {
       createdAt: new Date(),
     };
     await transactionsCollection.insertOne(transactionDoc);
+  } else if (!existingTransaction.appointmentDate && appointmentDate) {
+    await transactionsCollection.updateOne(
+      { _id: existingTransaction._id },
+      { $set: { appointmentDate } }
+    );
   }
 
-  // Update matching appointment: set paymentStatus: 'paid', stripeSessionId, paidAt
+  // Update matching appointment: set paymentStatus: 'paid', stripeSessionId, paidAt, keeping status: 'confirmed'
   await appointmentsCollection.updateOne(
     { _id: new ObjectId(appointmentId) },
     {
@@ -52,15 +62,6 @@ const handleSessionPaymentSuccess = async (session) => {
         paymentStatus: 'paid',
         stripeSessionId: session.id,
         paidAt: new Date(),
-      },
-    }
-  );
-
-  // Promote status from 'pending' to 'confirmed'
-  await appointmentsCollection.updateOne(
-    { _id: new ObjectId(appointmentId), status: 'pending' },
-    {
-      $set: {
         status: 'confirmed',
       },
     }
@@ -115,8 +116,8 @@ router.post('/payments/create-checkout-session', verifyJWT, async (req, res, nex
       return res.status(403).send({ message: 'Forbidden: You do not have permission to pay for this appointment' });
     }
 
-    if (appointment.status === 'cancelled') {
-      return res.status(400).send({ message: 'Cannot pay for a cancelled appointment' });
+    if (appointment.status !== 'confirmed') {
+      return res.status(400).send({ message: 'Only confirmed appointments can be paid.' });
     }
 
     if (appointment.paymentStatus === 'paid') {
@@ -183,13 +184,33 @@ router.post('/payments/verify-session', verifyJWT, async (req, res, next) => {
 // GET /transactions/my (Protected: verifyJWT): Return transactions for authenticated customer
 router.get('/transactions/my', verifyJWT, async (req, res, next) => {
   try {
-    const { transactionsCollection } = getCollections();
+    const { transactionsCollection, appointmentsCollection } = getCollections();
     const transactions = await transactionsCollection
       .find({ customerEmail: req.user.email })
       .sort({ createdAt: -1 })
       .toArray();
 
-    res.send(transactions);
+    const missingApptIds = transactions
+      .filter((tx) => !tx.appointmentDate && tx.appointmentId && isValidObjectId(String(tx.appointmentId)))
+      .map((tx) => new ObjectId(tx.appointmentId));
+
+    let apptMap = new Map();
+    if (missingApptIds.length > 0) {
+      const appointments = await appointmentsCollection
+        .find({ _id: { $in: missingApptIds } }, { projection: { appointmentDate: 1 } })
+        .toArray();
+      apptMap = new Map(appointments.map((a) => [a._id.toString(), a.appointmentDate]));
+    }
+
+    const enrichedTransactions = transactions.map((tx) => ({
+      ...tx,
+      appointmentDate:
+        tx.appointmentDate ||
+        (tx.appointmentId ? apptMap.get(String(tx.appointmentId)) : '') ||
+        '',
+    }));
+
+    res.send(enrichedTransactions);
   } catch (error) {
     next(error);
   }
@@ -198,13 +219,33 @@ router.get('/transactions/my', verifyJWT, async (req, res, next) => {
 // GET /admin/transactions (Protected: verifyJWT, verifyAdmin): Return all transactions
 router.get('/admin/transactions', verifyJWT, verifyAdmin, async (req, res, next) => {
   try {
-    const { transactionsCollection } = getCollections();
+    const { transactionsCollection, appointmentsCollection } = getCollections();
     const transactions = await transactionsCollection
       .find()
       .sort({ createdAt: -1 })
       .toArray();
 
-    res.send(transactions);
+    const missingApptIds = transactions
+      .filter((tx) => !tx.appointmentDate && tx.appointmentId && isValidObjectId(String(tx.appointmentId)))
+      .map((tx) => new ObjectId(tx.appointmentId));
+
+    let apptMap = new Map();
+    if (missingApptIds.length > 0) {
+      const appointments = await appointmentsCollection
+        .find({ _id: { $in: missingApptIds } }, { projection: { appointmentDate: 1 } })
+        .toArray();
+      apptMap = new Map(appointments.map((a) => [a._id.toString(), a.appointmentDate]));
+    }
+
+    const enrichedTransactions = transactions.map((tx) => ({
+      ...tx,
+      appointmentDate:
+        tx.appointmentDate ||
+        (tx.appointmentId ? apptMap.get(String(tx.appointmentId)) : '') ||
+        '',
+    }));
+
+    res.send(enrichedTransactions);
   } catch (error) {
     next(error);
   }

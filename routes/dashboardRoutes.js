@@ -18,12 +18,14 @@ router.get('/dashboard/customer-stats', verifyJWT, async (req, res, next) => {
     let pendingAppointments = 0;
     let confirmedAppointments = 0;
     let completedAppointments = 0;
+    let cancelledAppointments = 0;
     let totalSpent = 0;
 
     for (const appt of appointments) {
       if (appt.status === 'pending') pendingAppointments++;
       if (appt.status === 'confirmed') confirmedAppointments++;
       if (appt.status === 'completed') completedAppointments++;
+      if (appt.status === 'cancelled') cancelledAppointments++;
       if (appt.paymentStatus === 'paid' && typeof appt.price === 'number') {
         totalSpent += appt.price;
       }
@@ -41,6 +43,7 @@ router.get('/dashboard/customer-stats', verifyJWT, async (req, res, next) => {
         pendingAppointments,
         confirmedAppointments,
         completedAppointments,
+        cancelledAppointments,
         totalSpent,
       },
       recentAppointments,
@@ -61,11 +64,20 @@ router.get('/dashboard/admin-stats', verifyJWT, verifyAdmin, async (req, res, ne
     } = getCollections();
 
     // Counts across collections
-    const [totalUsers, totalServices, activeServices, totalAppointments] = await Promise.all([
+    const [
+      totalUsers,
+      totalCustomers,
+      totalServices,
+      activeServices,
+      totalAppointments,
+      successfulPayments,
+    ] = await Promise.all([
       usersCollection.countDocuments(),
+      usersCollection.countDocuments({ role: 'customer' }),
       servicesCollection.countDocuments(),
       servicesCollection.countDocuments({ status: 'active' }),
       appointmentsCollection.countDocuments(),
+      transactionsCollection.countDocuments({ status: 'paid' }),
     ]);
 
     // Group appointments by status
@@ -87,6 +99,9 @@ router.get('/dashboard/admin-stats', verifyJWT, verifyAdmin, async (req, res, ne
         statusBreakdown[item._id] = item.count;
       }
     }
+
+    const pendingAppointments = statusBreakdown.pending;
+    const confirmedAppointments = statusBreakdown.confirmed;
 
     // Calculate total revenue from paid transactions
     const revenueAgg = await transactionsCollection
@@ -166,10 +181,14 @@ router.get('/dashboard/admin-stats', verifyJWT, verifyAdmin, async (req, res, ne
 
     res.send({
       stats: {
-        totalUsers,
-        totalServices,
+        totalCustomers,
         activeServices,
         totalAppointments,
+        pendingAppointments,
+        confirmedAppointments,
+        successfulPayments,
+        totalUsers,
+        totalServices,
         totalRevenue,
         statusBreakdown,
       },
