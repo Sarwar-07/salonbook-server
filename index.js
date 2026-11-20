@@ -5,6 +5,7 @@ import { connectDB } from './config/db.js';
 import { verifyJWT } from './middlewares/authMiddleware.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(
 app.use(express.json());
 app.use('/api', serviceRoutes);
 app.use('/api', appointmentRoutes);
+app.use('/api', userRoutes);
 
 app.get('/', (req, res) => {
   res.send({ status: 'ok', message: 'SalonBook API Server is running' });
