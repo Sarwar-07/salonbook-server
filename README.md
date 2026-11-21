@@ -1,17 +1,102 @@
-# SalonBook API Server
+# SalonBook API Server — Salon Appointment Booking Platform
 
-A production-ready REST API backend for the **SalonBook** salon management and appointment booking platform. Built with Node.js, Express, MongoDB Atlas, JSON Web Tokens (JWT), and Stripe Checkout.
+Node.js/Express REST API powering authentication sync, service management, conflict-free appointment scheduling, role-based dashboards, and Stripe Checkout + webhook fulfillment.
 
 ---
 
-## 🛠️ Tech Stack & Key Libraries
+## 🔗 Live Links & Repositories
 
-- **Runtime**: Node.js (ES Modules, `"type": "module"`)
-- **Framework**: Express.js 5
-- **Database**: MongoDB Atlas via modern `mongodb` official driver (v7)
-- **Authentication**: Stateless JSON Web Tokens (`jsonwebtoken`)
-- **Payments**: Stripe Checkout & Webhooks (`stripe`)
-- **Security & Utilities**: CORS, Dotenv, Node.js DNS resolution hardening
+- **Live API Server:** [https://salonbook-server-eight.vercel.app](https://salonbook-server-eight.vercel.app)
+- **Live Client Website:** [https://salonbook-client-three.vercel.app](https://salonbook-client-three.vercel.app)
+- **Server Repository:** [https://github.com/Sarwar-07/salonbook-server](https://github.com/Sarwar-07/salonbook-server)
+- **Client Repository:** [https://github.com/Sarwar-07/salonbook-client](https://github.com/Sarwar-07/salonbook-client)
+
+---
+
+## ✨ Important Features & Core API Modules
+
+- **JWT Authentication & Role Security:** Stateless JWT issuance (`/api/auth/jwt`) with account status checks (`isBlocked`) and middleware guards (`verifyJWT`, `verifyAdmin`, `verifyCustomer`).
+- **Salon Services Management:** Public search, category filtering, and price sorting (`/api/services`), alongside protected Admin CRUD operations (`/api/admin/services`).
+- **Double-Booking Conflict Prevention:** Real-time slot availability check (`/api/appointments/booked-slots`) and appointment booking with atomic conflict detection returning `409 Conflict` if the service, date, and time slot are already reserved (`/api/appointments`).
+- **Appointment Status Controls:** Customer appointment cancellation (`/api/appointments/:id/cancel`) and Admin lifecycle management (`pending` ➔ `confirmed` ➔ `completed` / `cancelled`) via `/api/admin/appointments`.
+- **Stripe Checkout & Webhook Fulfillment:**
+  - Secure Checkout session generation for `confirmed` and `unpaid` appointments only (`/api/payments/create-checkout-session`).
+  - Webhook signature verification (`checkout.session.completed`) with idempotent transaction creation and appointment payment status updates (`/api/payments/webhook`).
+  - Read-only transaction ledger for customers and administrators (`/api/transactions/my`, `/api/admin/transactions`) with enriched appointment date tracking.
+- **Analytics & Role-Based Dashboards:**
+  - Customer statistics (`/api/dashboard/customer-stats`): `totalAppointments`, `pendingAppointments`, `confirmedAppointments`, `completedAppointments`, `cancelledAppointments`, `totalSpent`, and recent bookings.
+  - Admin KPI analytics (`/api/dashboard/admin-stats`): `totalCustomers`, `activeServices`, `totalAppointments`, `pendingAppointments`, `confirmedAppointments`, `successfulPayments`, `totalUsers`, `totalServices`, `totalRevenue`, and category revenue aggregations.
+- **User Management:** Customer profile self-update (`/api/users/profile`) and Admin user control (`/api/admin/users`) with role assignments and account suspension safeguards preventing self-demotion or self-blocking.
+
+---
+
+## 🛠️ Technology Stack
+
+- **Runtime & Framework:** Node.js (ES Modules), Express.js 5
+- **Database:** MongoDB Atlas (native official `mongodb` driver)
+- **Authentication & Security:** JSON Web Tokens (`jsonwebtoken`), CORS
+- **Payments:** Stripe SDK (`stripe`)
+- **Configuration & Utilities:** `dotenv`, custom logging, connection pooling & caching
+
+---
+
+## ⚙️ Required Environment Variables
+
+Create a `.env` file in the root directory. Configure the following variable names (do not commit secret values to version control):
+
+| Variable Name | Description |
+|---|---|
+| `PORT` | Local server port (e.g. `5000`) |
+| `MONGODB_URI` | MongoDB Atlas connection string URI |
+| `DB_NAME` | Target database name (e.g. `salonbook_db`) |
+| `JWT_SECRET` | Secret key used for signing and verifying JSON Web Tokens |
+| `STRIPE_SECRET_KEY` | Stripe secret API key (starts with `sk_test_...` or `sk_live_...`) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (starts with `whsec_...`) |
+| `CLIENT_URL` | Frontend origin URL for CORS policy and Stripe redirect callbacks |
+| `NODE_ENV` | Runtime environment mode (`development` or `production`) |
+
+> [!IMPORTANT]
+> Never expose or commit real secrets, private keys, or credentials into public repositories.
+
+---
+
+## 🚀 Installation & Running Locally
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Sarwar-07/salonbook-server.git
+cd salonbook-server
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Setup Environment Variables
+Create a `.env` file in the project root and fill in the required variables as described in the [Required Environment Variables](#️-required-environment-variables) section.
+
+### 4. Seed Database (Optional)
+Seed initial demo users (`admin@salonbook.com`, `customer@salonbook.com`) and 12 sample salon services across 5 categories:
+```bash
+npm run seed
+```
+
+### 5. Run the Server
+```bash
+# Start with hot-reloading (Node watch mode):
+npm run dev
+
+# Or start in standard mode:
+npm start
+```
+The server will start at `http://localhost:5000`.
+
+### 6. Run API Verification Suite
+Run the automated end-to-end verification script:
+```bash
+npm run verify
+```
 
 ---
 
@@ -20,7 +105,7 @@ A production-ready REST API backend for the **SalonBook** salon management and a
 ```
 salonbook-server/
 ├── config/
-│   └── db.js                 # MongoDB connection caching & performance/uniqueness index initialization
+│   └── db.js                 # MongoDB connection caching, serverless DNS guards & index initialization
 ├── middlewares/
 │   ├── authMiddleware.js     # verifyJWT, verifyAdmin, verifyCustomer
 │   └── loggerMiddleware.js   # requestLogger, notFoundHandler (404)
@@ -33,366 +118,67 @@ salonbook-server/
 │   └── userRoutes.js         # Customer profile update and Admin user management
 ├── scripts/
 │   ├── seed.js               # Database seeding script for demo users and services
-│   └── verify-api.js         # End-to-end automated verification script
+│   └── verify-api.js         # End-to-end automated API test suite
 ├── index.js                  # Express entry point, middleware chain, and server listener
 ├── vercel.json               # Vercel serverless deployment configuration
 ├── package.json              # NPM scripts and dependencies
-└── .env                      # Environment variables configuration
+└── README.md                 # Project documentation
 ```
 
 ---
 
-## ⚙️ Environment Variables
+## 📖 API Reference Overview
 
-The server configuration relies on the following environment variables (defined in `.env`):
+All API endpoints are prefixed with `/api` (except the root health check `/`).
 
-| Variable | Description |
-|---|---|
-| `PORT` | Local server port (Default: `5000`) |
-| `MONGODB_URI` | MongoDB Atlas cluster connection URI |
-| `DB_NAME` | Target database name (`salonbook_db`) |
-| `JWT_SECRET` | Secret key for signing and verifying JSON Web Tokens |
-| `STRIPE_SECRET_KEY` | Stripe secret API key (`sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
-| `CLIENT_URL` | Frontend origin for CORS and checkout redirects (e.g. `http://localhost:3000`) |
-| `NODE_ENV` | Environment mode (`development` / `production`) |
+### Health Check
+- `GET /` — Service health check status (`200 OK`)
 
----
+### Authentication & Current User
+- `POST /api/auth/jwt` — Exchange user profile details for a signed JWT token
+- `GET /api/me` — Retrieve current authenticated user profile (`verifyJWT`)
 
-## 🚀 Getting Started
+### Services
+- `GET /api/services` — Public active services list (supports `search`, `category`, `sort`, `limit`)
+- `GET /api/services/:id` — Public single service details
+- `GET /api/admin/services` — Admin view of all services including inactive (`verifyJWT`, `verifyAdmin`)
+- `POST /api/services` — Admin create service (`verifyJWT`, `verifyAdmin`)
+- `PATCH /api/services/:id` — Admin update service (`verifyJWT`, `verifyAdmin`)
+- `DELETE /api/services/:id` — Admin delete service (`verifyJWT`, `verifyAdmin`)
 
-### 1. Install Dependencies
-```bash
-npm install
-```
+### Appointments
+- `GET /api/appointments/booked-slots` — Public booked time slots for a given `serviceId` and `date`
+- `POST /api/appointments` — Book an appointment with double-booking conflict check (`verifyJWT`, `verifyCustomer`)
+- `GET /api/appointments/my` — Customer view of their appointments (`verifyJWT`)
+- `PATCH /api/appointments/:id/cancel` — Customer cancel pending appointment (`verifyJWT`)
+- `GET /api/admin/appointments` — Admin view of all appointments (`verifyJWT`, `verifyAdmin`)
+- `PATCH /api/admin/appointments/:id/status` — Admin update status (`pending`, `confirmed`, `completed`, `cancelled`)
 
-### 2. Seed Database
-Seed demo accounts (`admin@salonbook.com`, `customer@salonbook.com`) and 12 salon services across 5 categories:
-```bash
-npm run seed
-```
+### Payments & Transactions
+- `POST /api/payments/create-checkout-session` — Create Stripe Checkout session for confirmed unpaid appointments (`verifyJWT`)
+- `POST /api/payments/webhook` — Stripe webhook listener for `checkout.session.completed` (raw body verified)
+- `POST /api/payments/verify-session` — Fallback session verification (`verifyJWT`)
+- `GET /api/transactions/my` — Customer transaction history (`verifyJWT`)
+- `GET /api/admin/transactions` — Admin transaction ledger with enriched appointment dates (`verifyJWT`, `verifyAdmin`)
 
-### 3. Run Development Server
-```bash
-npm run dev
-# Or for standard production start:
-npm start
-```
+### Dashboards & Analytics
+- `GET /api/dashboard/customer-stats` — Customer metrics and 5 recent appointments (`verifyJWT`)
+- `GET /api/dashboard/admin-stats` — Admin KPI metrics, category revenues, and recent activity (`verifyJWT`, `verifyAdmin`)
 
-### 4. Run Automated End-to-End API Verification
-With the server running on `http://localhost:5000`:
-```bash
-npm run verify
-```
-
----
-
-## 📖 API Documentation
-
-All routes (except root `/`) are prefixed with `/api`.
-
-### 1. Health Check
-- **`GET /`**
-  - **Access**: Public
-  - **Response (200)**:
-    ```json
-    { "status": "ok", "message": "SalonBook API Server is running" }
-    ```
+### User Management
+- `PATCH /api/users/profile` — Update authenticated customer profile (`verifyJWT`)
+- `GET /api/admin/users` — Admin view of all users (`verifyJWT`, `verifyAdmin`)
+- `PATCH /api/admin/users/:id/role` — Admin promote/demote user role (`verifyJWT`, `verifyAdmin`)
+- `PATCH /api/admin/users/:id/block` — Admin suspend/unblock user (`verifyJWT`, `verifyAdmin`)
 
 ---
 
-### 2. Authentication & Authorization
+## ☁️ Deployment
 
-#### `POST /api/auth/jwt`
-- **Access**: Public
-- **Description**: Authenticate or sync user account from client (e.g. Firebase Auth) and issue a 7-day signed JWT. Backfills name or image if missing, preserves role, and verifies account suspension.
-- **Request Body**:
-  ```json
-  {
-    "email": "customer@salonbook.com",
-    "name": "Sophia Laurent",
-    "image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb"
-  }
-  ```
-- **Response (200)**:
-  ```json
-  {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "_id": "673f...",
-      "name": "Sophia Laurent",
-      "email": "customer@salonbook.com",
-      "image": "https://...",
-      "phone": "",
-      "role": "customer",
-      "isBlocked": false
-    }
-  }
-  ```
-- **Errors**: `400` (Invalid email), `403` (Account suspended).
-
-#### `GET /api/me`
-- **Access**: Protected (`verifyJWT`)
-- **Headers**: `Authorization: Bearer <token>`
-- **Response (200)**:
-  ```json
-  {
-    "user": {
-      "_id": "673f...",
-      "name": "Sophia Laurent",
-      "email": "customer@salonbook.com",
-      "image": "https://...",
-      "phone": "",
-      "role": "customer",
-      "isBlocked": false
-    }
-  }
-  ```
-
----
-
-### 3. Salon Services
-
-#### `GET /api/services`
-- **Access**: Public
-- **Query Parameters**:
-  - `search`: Case-insensitive regex search on `serviceName`.
-  - `category`: Filter by category (e.g., `'Hair'`, `'Skin'`, `'Makeup'`, `'Spa'`, `'Nails'`). Omits filter if `'All'`.
-  - `sort`: `'price_asc'` (`{ price: 1 }`), `'price_desc'` (`{ price: -1 }`), default `{ createdAt: -1 }`.
-  - `limit`: Optional positive integer to limit results.
-- **Response (200)**: Array of active service objects.
-
-#### `GET /api/services/:id`
-- **Access**: Public
-- **Response (200)**: Service object matching `_id`.
-- **Errors**: `400` (Invalid ObjectId format), `404` (Service not found).
-
-#### `GET /api/admin/services`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Response (200)**: Array of all services (`active` and `inactive`) sorted by `{ createdAt: -1 }`.
-
-#### `POST /api/services`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Request Body**:
-  ```json
-  {
-    "serviceName": "Signature Blowout",
-    "category": "Hair",
-    "description": "Professional hair wash and blowout.",
-    "image": "https://images.unsplash.com/photo-1560869713-7d0a29430803",
-    "price": 55,
-    "duration": 45,
-    "status": "active"
-  }
-  ```
-- **Response (201)**: `{ "message": "Service created successfully", "service": { ... } }`
-
-#### `PATCH /api/services/:id`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Request Body**: Any subset of `serviceName`, `category`, `description`, `image`, `price`, `duration`, `status` (`'active'` or `'inactive'`).
-- **Response (200)**: `{ "message": "Service updated successfully", "service": { ... } }`
-
-#### `DELETE /api/services/:id`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Response (200)**: `{ "message": "Service deleted successfully" }`
-
----
-
-### 4. Appointment Booking & Management
-
-#### `GET /api/appointments/booked-slots`
-- **Access**: Public
-- **Query Parameters**: `serviceId` (`ObjectId`), `date` (`YYYY-MM-DD`).
-- **Response (200)**: Array of booked `timeSlot` strings where status is not cancelled.
-  ```json
-  ["10:00 AM", "02:00 PM"]
-  ```
-
-#### `POST /api/appointments`
-- **Access**: Protected (`verifyJWT, verifyCustomer`)
-- **Request Body**:
-  ```json
-  {
-    "serviceId": "673f...",
-    "appointmentDate": "2026-12-25",
-    "timeSlot": "10:00 AM",
-    "notes": "First time visit"
-  }
-  ```
-- **Response (201)**:
-  ```json
-  {
-    "message": "Appointment booked successfully",
-    "appointment": {
-      "_id": "6740...",
-      "customerId": "673f...",
-      "customerName": "Sophia Laurent",
-      "customerEmail": "customer@salonbook.com",
-      "serviceId": "673f...",
-      "serviceName": "Signature Blowout",
-      "serviceCategory": "Hair",
-      "serviceImage": "https://...",
-      "price": 55,
-      "duration": 45,
-      "appointmentDate": "2026-12-25",
-      "timeSlot": "10:00 AM",
-      "notes": "First time visit",
-      "status": "pending",
-      "paymentStatus": "unpaid",
-      "createdAt": "2026-11-20T18:00:00.000Z"
-    }
-  }
-  ```
-- **Errors**: `400` (Validation), `404` (Service not found), `409 Conflict` (`"This time slot is already booked for the selected date."`).
-
-#### `GET /api/appointments/my`
-- **Access**: Protected (`verifyJWT`)
-- **Response (200)**: Array of appointments for logged-in user sorted by `{ createdAt: -1 }`.
-
-#### `PATCH /api/appointments/:id/cancel`
-- **Access**: Protected (`verifyJWT`)
-- **Description**: Allows customer to cancel their own `'pending'` appointment.
-- **Response (200)**: `{ "message": "Appointment cancelled successfully", "appointment": { ... } }`
-
-#### `GET /api/admin/appointments`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Query Parameters**: `status` (Optional filter: `'pending'`, `'confirmed'`, `'completed'`, `'cancelled'`).
-- **Response (200)**: Array of all appointments sorted by `{ createdAt: -1 }`.
-
-#### `PATCH /api/admin/appointments/:id/status`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Request Body**: `{ "status": "confirmed" | "completed" | "cancelled" | "pending" }`
-- **Response (200)**: `{ "message": "Appointment status updated successfully", "appointment": { ... } }`
-
----
-
-### 5. Customer Profile & User Management
-
-#### `PATCH /api/users/profile`
-- **Access**: Protected (`verifyJWT`)
-- **Request Body**:
-  ```json
-  {
-    "name": "Sophia Laurent Updated",
-    "phone": "+1 (555) 876-5432",
-    "image": "https://..."
-  }
-  ```
-- **Response (200)**: `{ "message": "Profile updated successfully", "user": { ... } }`
-
-#### `GET /api/admin/users`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Response (200)**: Array of all users sorted by `{ createdAt: -1 }` (passwords excluded).
-
-#### `PATCH /api/admin/users/:id/role`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Request Body**: `{ "role": "admin" | "customer" }`
-- **Security**: Prevents self-demotion (`400 Bad Request` if `req.user._id === id`).
-- **Response (200)**: `{ "message": "User role updated successfully", "user": { ... } }`
-
-#### `PATCH /api/admin/users/:id/block`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Request Body**: `{ "isBlocked": true | false }`
-- **Security**: Prevents self-blocking (`400 Bad Request` if `req.user._id === id`).
-- **Response (200)**: `{ "message": "User block status updated successfully", "user": { ... } }`
-
----
-
-### 6. Dashboard Analytics & Stats
-
-#### `GET /api/dashboard/customer-stats`
-- **Access**: Protected (`verifyJWT`)
-- **Response (200)**:
-  ```json
-  {
-    "stats": {
-      "totalAppointments": 4,
-      "pendingAppointments": 1,
-      "confirmedAppointments": 1,
-      "completedAppointments": 1,
-      "totalSpent": 120
-    },
-    "recentAppointments": [ ... ]
-  }
-  ```
-
-#### `GET /api/dashboard/admin-stats`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Response (200)**:
-  ```json
-  {
-    "stats": {
-      "totalUsers": 15,
-      "totalServices": 12,
-      "activeServices": 12,
-      "totalAppointments": 28,
-      "totalRevenue": 2450,
-      "statusBreakdown": {
-        "pending": 5,
-        "confirmed": 12,
-        "completed": 9,
-        "cancelled": 2
-      }
-    },
-    "categoryRevenue": [
-      { "category": "Hair", "revenue": 1150, "bookings": 14 },
-      { "category": "Skin", "revenue": 800, "bookings": 7 }
-    ],
-    "recentAppointments": [ ... ],
-    "recentTransactions": [ ... ]
-  }
-  ```
-
----
-
-### 7. Payments & Stripe Integration
-
-#### `POST /api/payments/create-checkout-session`
-- **Access**: Protected (`verifyJWT`)
-- **Request Body**: `{ "appointmentId": "6740..." }`
-- **Response (200)**:
-  ```json
-  {
-    "url": "https://checkout.stripe.com/c/pay/cs_test_...",
-    "sessionId": "cs_test_..."
-  }
-  ```
-
-#### `POST /api/payments/webhook`
-- **Access**: Public (Stripe Signature Verified via `express.raw({ type: 'application/json' })`)
-- **Headers**: `stripe-signature: t=...,v1=...`
-- **Description**: Listens for `checkout.session.completed`, executes idempotent transaction insertion, updates `appointmentsCollection` (`paymentStatus: 'paid'`, `stripeSessionId`, `paidAt`), and promotes status from `'pending'` to `'confirmed'`.
-- **Response (200)**: `{ "received": true }`
-
-#### `POST /api/payments/verify-session`
-- **Access**: Protected (`verifyJWT`)
-- **Description**: Fallback verification endpoint for client return (`/payment/success?session_id=...`). Retrieves session from Stripe and performs idempotent fulfillment if paid.
-- **Request Body**: `{ "sessionId": "cs_test_..." }`
-- **Response (200)**: `{ "status": "paid", "appointmentId": "6740..." }`
-
-#### `GET /api/transactions/my`
-- **Access**: Protected (`verifyJWT`)
-- **Response (200)**: Array of transaction records for authenticated customer sorted by `{ createdAt: -1 }`.
-
-#### `GET /api/admin/transactions`
-- **Access**: Protected (`verifyJWT, verifyAdmin`)
-- **Response (200)**: Array of all payment transaction records sorted by `{ createdAt: -1 }`.
-
----
-
-## ☁️ Vercel Deployment
-
-This project includes [vercel.json](file:///d:/Work/Programming%20Hero/Assaingment/Assignment-9/salonbook-server/vercel.json) preconfigured for serverless Node.js deployment.
+Configured for serverless deployment on [Vercel](https://vercel.com) using `@vercel/node`.
 
 ### Steps to Deploy:
-1. Push the repository to GitHub.
-2. In the [Vercel Dashboard](https://vercel.com), click **Add New > Project** and import the repository.
-3. In **Settings > Environment Variables**, configure all production keys:
-   - `MONGODB_URI`
-   - `DB_NAME`
-   - `JWT_SECRET`
-   - `STRIPE_SECRET_KEY`
-   - `STRIPE_WEBHOOK_SECRET`
-   - `CLIENT_URL`
-   - `NODE_ENV=production`
-4. Deploy. The backend API will be live at `https://<your-project>.vercel.app`.
+1. Push repository commits to GitHub.
+2. In the [Vercel Dashboard](https://vercel.com), create a new project and import `salonbook-server`.
+3. In **Settings > Environment Variables**, supply the production variable values listed in [Required Environment Variables](#️-required-environment-variables).
+4. Deploy the application.
